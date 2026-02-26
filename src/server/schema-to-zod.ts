@@ -22,7 +22,9 @@ export function buildCreateInputSchema(
     if (field.name.startsWith("_")) continue;
 
     const zodType = fieldToZod(field);
-    shape[field.name] = field.required ? zodType : zodType.optional();
+    // Fields with defaults are optional at input time — the database layer fills them
+    const isRequiredInput = field.required && field.default === undefined;
+    shape[field.name] = isRequiredInput ? zodType : zodType.optional();
   }
 
   return z.object(shape);
