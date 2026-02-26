@@ -8,19 +8,21 @@ import { join, basename } from "node:path";
 import type { Project } from "../types/project.ts";
 import type { CompiledSchema } from "../types/schema.ts";
 import type { CompiledAction } from "../types/action.ts";
+import type { ExecutionPlan } from "../types/execution-plan.ts";
+import type { CompiledRuleSet } from "../types/rule.ts";
+import type { CompiledWorkflow } from "../types/workflow.ts";
 import { compileSchema } from "../compiler/schema-compiler.ts";
+import { parseAction } from "../compiler/action-parser.ts";
 
 /** Load an NLBackend project from a folder path */
 export async function loadProject(rootPath: string): Promise<Project> {
   const { name, description } = await loadProjectMeta(rootPath);
 
   const schemas = await loadSchemas(rootPath);
+  const actions = await loadActions(rootPath);
   const rules = await loadMarkdownFolder(rootPath, "rules");
   const workflows = await loadMarkdownFolder(rootPath, "workflows");
   const integrations = await loadMarkdownFolder(rootPath, "integrations");
-
-  // Actions will be compiled in Phase 2 (LLM-powered), for now load as raw
-  const actions = new Map<string, CompiledAction>();
 
   return {
     rootPath,
@@ -28,6 +30,9 @@ export async function loadProject(rootPath: string): Promise<Project> {
     description,
     schemas,
     actions,
+    executionPlans: new Map<string, ExecutionPlan>(),
+    compiledRules: new Map<string, CompiledRuleSet>(),
+    compiledWorkflows: new Map<string, CompiledWorkflow>(),
     rules,
     workflows,
     integrations,
@@ -84,6 +89,48 @@ async function loadSchemas(
   }
 
   return schemas;
+}
+
+/**
+ * Load all action files from actions/ subdirectories.
+ * Convention: actions/{entity}/{operation}.md → {entity}_{operation}
+ */
+async function loadActions(
+  rootPath: string,
+): Promise<Map<string, CompiledAction>> {
+  const actionsDir = join(rootPath, "actions");
+  const actions = new Map<string, CompiledAction>();
+
+  let entityDirs: string[];
+  try {
+    entityDirs = await readdir(actionsDir);
+  } catch {
+    return actions; // No actions directory
+  }
+
+  for (const entityDir of entityDirs) {
+    const entityPath = join(actionsDir, entityDir);
+
+    // Skip non-directories and claude.md
+    if (entityDir.endsWith(".md") || entityDir.startsWith("_")) continue;
+    if (!(await isDirectory(entityPath))) continue;
+
+    const files = await listMarkdownFiles(entityPath);
+    for (const file of files) {
+      const content = await readFile(join(entityPath, file), "utf-8");
+      const operation = basename(file, ".md");
+      const relativePath = `actions/${entityDir}/${file}`;
+
+      try {
+        const action = parseAction(content, relativePath, entityDir, operation);
+        actions.set(action.toolName, action);
+      } catch (err) {
+        console.error(`Failed to parse action ${relativePath}:`, err);
+      }
+    }
+  }
+
+  return actions;
 }
 
 /** Load all markdown files from a folder as raw text, keyed by filename */
