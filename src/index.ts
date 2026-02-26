@@ -17,12 +17,15 @@ import { LLMClient } from "./llm/client.ts";
 import { registerSystemTools } from "./server/system-tools.ts";
 import { registerCrudTools } from "./server/tool-registrar.ts";
 import { registerActionTools } from "./server/action-tool-registrar.ts";
+import { registerResources } from "./server/resources.ts";
 import { compileAllActions } from "./compiler/action-compiler.ts";
 import { compileAllRules } from "./compiler/rule-compiler.ts";
 import { compileAllWorkflows } from "./compiler/workflow-compiler.ts";
 import { resolve } from "node:path";
+import { FileWatcher } from "./watcher/file-watcher.ts";
+import { CompiledCache } from "./cache/compiled-cache.ts";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 async function main(): Promise<void> {
   const { projectPath, shouldCompile } = parseArgs();
@@ -37,7 +40,8 @@ async function main(): Promise<void> {
   console.error(
     `[nlbackend] Loaded project "${project.name}" — ` +
     `${project.schemas.size} schema(s), ${project.actions.size} action(s), ` +
-    `${project.rules.size} rule(s), ${project.workflows.size} workflow(s)`,
+    `${project.rules.size} rule(s), ${project.workflows.size} workflow(s), ` +
+    `${project.compiledIntegrations.size} integration(s)`,
   );
 
   // 3. Initialize the database
@@ -47,13 +51,33 @@ async function main(): Promise<void> {
     `[nlbackend] Database initialized with collections: ${db.getCollectionNames().join(", ")}`,
   );
 
-  // 4. Initialize LLM client
+  // 4. Initialize LLM client and compiled cache
   const llm = new LLMClient(config.llm);
+  const cache = new CompiledCache(projectPath);
 
-  // 5. Optional: LLM-compile actions, rules, and workflows
+  // 5. Try loading cached compilations (warm start)
+  const cached = await cache.loadAll();
+  if (cached.loaded) {
+    for (const [k, v] of cached.plans) project.executionPlans.set(k, v);
+    for (const [k, v] of cached.rules) project.compiledRules.set(k, v);
+    for (const [k, v] of cached.workflows) project.compiledWorkflows.set(k, v);
+    console.error(
+      `[nlbackend] Loaded cached compilations: ${cached.plans.size} plan(s), ` +
+      `${cached.rules.size} rule(s), ${cached.workflows.size} workflow(s)`,
+    );
+  }
+
+  // 6. Optional: LLM-compile actions, rules, and workflows
   if (shouldCompile && llm.isConfigured()) {
     console.error("[nlbackend] Running LLM compilation...");
     await runCompilation(project, llm);
+    // Save compiled artifacts to cache
+    await cache.saveAll(
+      project.executionPlans,
+      project.compiledRules,
+      project.compiledWorkflows,
+    );
+    console.error("[nlbackend] Saved compiled artifacts to .compiled/");
   } else if (shouldCompile) {
     console.error(
       "[nlbackend] Skipping compilation: LLM API key not configured. " +
@@ -64,13 +88,16 @@ async function main(): Promise<void> {
   // 6. Create and configure the MCP server
   const server = new McpServer(
     { name: `nlbackend:${project.name}`, version: VERSION },
-    { capabilities: { logging: {} } },
+    { capabilities: { logging: {}, resources: {} } },
   );
 
   // 7. Register system tools (describe_api, query_db, mutate_db, inspect, compile, explain, run_workflow)
   registerSystemTools(server, project, db, llm, config);
 
-  // 8. Register auto-generated CRUD tools from schemas
+  // 8. Register MCP resources (project overview, schema details)
+  registerResources(server, project, db);
+
+  // 9. Register auto-generated CRUD tools from schemas
   registerCrudTools(server, project.schemas, db);
 
   // 9. Register compiled action tools (if any)
@@ -82,7 +109,14 @@ async function main(): Promise<void> {
     `[nlbackend] Registered ${crudCount} CRUD + ${actionToolCount} action + ${systemCount} system tools`,
   );
 
-  // 10. Connect via stdio transport
+  // 10. Start file watcher for hot reloading
+  const watcher = new FileWatcher(project, db, llm);
+  if (!shouldCompile) {
+    // In dev mode (no --compile), auto-watch for changes
+    watcher.start();
+  }
+
+  // 11. Connect via stdio transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(`[nlbackend] MCP server running on stdio`);
@@ -90,6 +124,7 @@ async function main(): Promise<void> {
   // Graceful shutdown
   const shutdown = async () => {
     console.error("[nlbackend] Shutting down...");
+    watcher.stop();
     await db.shutdown();
     process.exit(0);
   };

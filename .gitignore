@@ -23,6 +23,15 @@ logs
 .cache
 *.tsbuildinfo
 
+# NLBackend compiled cache
+.compiled
+
+# NLBackend database runtime data (auto-managed)
+**/db/_log/
+**/db/_meta.json
+**/db/**/_index.json
+**/db/**/*.json
+
 # IDE
 .idea
 .vscode

@@ -1,17 +1,22 @@
 {
   "name": "nlbackend",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Natural Language Backend Framework — define backends in markdown, run them via MCP",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
-    "nlbackend": "src/index.ts"
+    "nlbackend": "src/cli.ts"
   },
+  "files": [
+    "src/**/*.ts",
+    "template/**/*"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "nlbackend": "bun run src/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

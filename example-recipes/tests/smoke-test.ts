@@ -262,7 +262,8 @@ async function main() {
   send(call("describe_api", {}));
   const api = getContent(await waitFor(describeId));
   assert("describe_api returns schemas", api?.schemas?.length === 4);
-  assert("describe_api returns tools", api?.tools?.length === 24);
+  // 4 schemas × 5 CRUD = 20, + 3 action tools + 7 system tools = 30
+  assert("describe_api returns tools", api?.tools?.length === 30);
 
   const inspectId = nextId;
   send(call("inspect", { type: "schema", name: "recipe" }));

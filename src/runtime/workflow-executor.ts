@@ -8,8 +8,10 @@ import type {
   WorkflowStep,
   WorkflowCompensation,
 } from "../types/workflow.ts";
+import type { CompiledIntegration } from "../types/integration.ts";
 import type { DatabaseEngine } from "../database/engine.ts";
 import type { LLMClient } from "../llm/client.ts";
+import { callIntegration } from "../integrations/adapter.ts";
 
 /** Result of a workflow execution */
 export interface WorkflowResult {
@@ -47,13 +49,14 @@ export async function executeWorkflow(
   input: Record<string, unknown>,
   db: DatabaseEngine,
   llm: LLMClient,
+  integrations?: Map<string, CompiledIntegration>,
 ): Promise<WorkflowResult> {
   const stepResults = new Map<number, StepResult>();
   const context: Record<string, unknown> = { input };
 
   for (const step of workflow.steps) {
     try {
-      const result = await executeWorkflowStep(step, context, db, llm);
+      const result = await executeWorkflowStep(step, context, db, llm, integrations);
       stepResults.set(step.index, {
         index: step.index,
         status: "completed",
@@ -97,6 +100,7 @@ async function executeWorkflowStep(
   context: Record<string, unknown>,
   db: DatabaseEngine,
   llm: LLMClient,
+  integrations?: Map<string, CompiledIntegration>,
 ): Promise<unknown> {
   const config = step.config;
 
@@ -161,15 +165,44 @@ async function executeWorkflowStep(
     }
 
     case "call_integration": {
-      // Placeholder — integrations are Phase 4
-      console.error(`[workflow] Integration call not yet implemented: ${config.integration}`);
-      return { integration: config.integration, status: "not_implemented" };
+      const integrationName = config.integration as string;
+      const actionName = config.action as string;
+      const params = (config.params as Record<string, unknown>) ?? {};
+
+      // Resolve param values from context
+      const resolvedParams: Record<string, unknown> = {};
+      for (const [key, source] of Object.entries(params)) {
+        resolvedParams[key] =
+          typeof source === "string"
+            ? resolveWorkflowValue(source, context)
+            : source;
+      }
+
+      const integration = integrations?.get(integrationName);
+      if (!integration) {
+        console.error(
+          `[workflow] Integration "${integrationName}" not found, skipping`,
+        );
+        return { integration: integrationName, status: "not_configured" };
+      }
+
+      const result = await callIntegration(
+        integration,
+        actionName,
+        resolvedParams,
+      );
+      if (!result.success) {
+        throw new Error(
+          `Integration ${integrationName}/${actionName} failed: ${result.error}`,
+        );
+      }
+      return result.data;
     }
 
     case "parallel": {
       const subSteps = (config.steps as WorkflowStep[]) ?? [];
       const results = await Promise.allSettled(
-        subSteps.map((s) => executeWorkflowStep(s, context, db, llm)),
+        subSteps.map((s) => executeWorkflowStep(s, context, db, llm, integrations)),
       );
       return results.map((r) =>
         r.status === "fulfilled" ? r.value : { error: r.reason?.message },
@@ -186,7 +219,7 @@ async function executeWorkflowStep(
       if (branch && Array.isArray(branch)) {
         const results = [];
         for (const s of branch) {
-          results.push(await executeWorkflowStep(s, context, db, llm));
+          results.push(await executeWorkflowStep(s, context, db, llm, integrations));
         }
         return results;
       }

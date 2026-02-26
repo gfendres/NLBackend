@@ -387,7 +387,7 @@ function registerRunWorkflow(
     }
 
     try {
-      const result = await executeWorkflow(workflow, input ?? {}, db, llm);
+      const result = await executeWorkflow(workflow, input ?? {}, db, llm, project.compiledIntegrations);
       return ok({
         workflow: name,
         success: result.success,

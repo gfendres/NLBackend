@@ -11,8 +11,10 @@ import type { CompiledAction } from "../types/action.ts";
 import type { ExecutionPlan } from "../types/execution-plan.ts";
 import type { CompiledRuleSet } from "../types/rule.ts";
 import type { CompiledWorkflow } from "../types/workflow.ts";
+import type { CompiledIntegration } from "../types/integration.ts";
 import { compileSchema } from "../compiler/schema-compiler.ts";
 import { parseAction } from "../compiler/action-parser.ts";
+import { parseIntegration } from "../integrations/parser.ts";
 
 /** Load an NLBackend project from a folder path */
 export async function loadProject(rootPath: string): Promise<Project> {
@@ -23,6 +25,7 @@ export async function loadProject(rootPath: string): Promise<Project> {
   const rules = await loadMarkdownFolder(rootPath, "rules");
   const workflows = await loadMarkdownFolder(rootPath, "workflows");
   const integrations = await loadMarkdownFolder(rootPath, "integrations");
+  const compiledIntegrations = loadIntegrations(integrations);
 
   return {
     rootPath,
@@ -36,6 +39,7 @@ export async function loadProject(rootPath: string): Promise<Project> {
     rules,
     workflows,
     integrations,
+    compiledIntegrations,
   };
 }
 
@@ -161,6 +165,21 @@ async function listMarkdownFiles(dirPath: string): Promise<string[]> {
   } catch {
     return []; // Directory doesn't exist yet
   }
+}
+
+/** Parse raw integration markdown files into CompiledIntegration objects */
+function loadIntegrations(
+  rawIntegrations: Map<string, string>,
+): Map<string, CompiledIntegration> {
+  const compiled = new Map<string, CompiledIntegration>();
+  for (const [name, content] of rawIntegrations) {
+    try {
+      compiled.set(name, parseIntegration(content, name));
+    } catch (err) {
+      console.error(`Failed to parse integration ${name}:`, err);
+    }
+  }
+  return compiled;
 }
 
 /** Check if a path is a directory */

@@ -3,6 +3,7 @@ import type { CompiledAction } from "./action.ts";
 import type { ExecutionPlan } from "./execution-plan.ts";
 import type { CompiledRuleSet } from "./rule.ts";
 import type { CompiledWorkflow } from "./workflow.ts";
+import type { CompiledIntegration } from "./integration.ts";
 
 /** The loaded state of an NLBackend project */
 export interface Project {
@@ -27,6 +28,8 @@ export interface Project {
   workflows: Map<string, string>;
   /** Raw integration file contents, keyed by filename (without .md) */
   integrations: Map<string, string>;
+  /** Parsed integration definitions, keyed by name */
+  compiledIntegrations: Map<string, CompiledIntegration>;
 }
 
 /** Recognized top-level folders in a project */
