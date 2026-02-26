@@ -1,0 +1,34 @@
+# dependencies
+node_modules
+
+# output
+out
+dist
+*.tgz
+
+# test coverage
+coverage
+*.lcov
+
+# logs
+logs
+*.log
+
+# dotenv
+.env
+.env.*.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IDE
+.idea
+.vscode
+
+# OS
+.DS_Store
+
+# bun
+bun.lockb
