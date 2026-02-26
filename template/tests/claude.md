@@ -1,16 +1,63 @@
 # Tests — How to define test scenarios
 
-Tests verify that the backend behaves as expected. Write them as plain-English scenarios that describe the setup, action, and expected outcome.
+Tests verify that the backend behaves as expected. There are two formats:
 
-## File naming
+## 1. Natural language tests (`.test.md`) — preferred
 
-Name test files after what they test: `smoke-test.ts`, `recipe-crud.ts`, `permissions.ts`.
+Write tests as plain-English scenarios using Given/When/Then:
 
-Currently, test files are TypeScript scripts that run against the MCP server. In the future, natural language test definitions will be supported.
+```markdown
+# User CRUD Tests
 
-## Test script structure
+## Create a user successfully
+- Given an authenticated user with role "admin"
+- When calling users_create with:
+    - username: "alice"
+    - email: "alice@example.com"
+    - display_name: "Alice Smith"
+- Then response contains field "id"
+- And response field "username" equals "alice"
+- And response field "role" equals "editor"
 
-Tests use Bun and the `@modelcontextprotocol/sdk` client to call MCP tools:
+## Reject duplicate username
+- Given an authenticated user
+- When calling users_create with:
+    - username: "alice"
+    - email: "different@example.com"
+- Then error code is "unique_constraint"
+
+## List users with filter
+- Given an authenticated user
+- When calling users_list with:
+    - filters: {"role": "admin"}
+- Then response contains field "data"
+```
+
+### Given clause types
+- `Given an authenticated user` — sets up auth context
+- `Given an authenticated user with role "admin"` — auth with specific role
+- `Given no authentication` — tests unauthenticated access
+- `Given a user "alice" exists` — sets up test data
+
+### When clause
+- `When calling {tool_name} with:` — followed by indented key-value pairs
+- `When calling {tool_name} with valid data` — uses sensible defaults
+
+### Then/And clause types
+- `Then response contains field "{field}"` — field exists
+- `Then response field "{field}" equals "{value}"` — exact match
+- `Then error code is "{code}"` — expected error
+- `And error message mentions "{text}"` — error message contains text
+
+### Running natural language tests
+
+```bash
+bun run /path/to/nlbackend/src/cli.ts test /path/to/this/project
+```
+
+## 2. TypeScript tests (`.ts`)
+
+For complex scenarios, write TypeScript test scripts:
 
 ```typescript
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -24,35 +71,31 @@ const transport = new StdioClientTransport({
 const client = new Client({ name: "test", version: "1.0.0" });
 await client.connect(transport);
 
-// Call tools
 const result = await client.callTool({
   name: "users_create",
   arguments: { username: "alice", email: "alice@example.com" },
 });
 
-// Parse the response
 const content = result.content as Array<{ type: string; text: string }>;
 const data = JSON.parse(content[0].text);
 
-// Assert
 if (!data.id) throw new Error("Expected user to have an id");
-
 console.log("✓ All tests passed");
 await client.close();
 ```
 
 ## What to test
 
-1. **Smoke test** — Can you start the server and list tools?
-2. **CRUD operations** — Create, read, update, delete for each entity
-3. **Relationships** — Creating records with foreign keys
-4. **Validation** — Submitting invalid data and checking errors
-5. **Permissions** — Ensure role-based access is enforced (once rules are compiled)
-6. **Workflows** — Trigger workflows and verify all steps execute
+1. **CRUD operations** — Create, read, update, delete for each entity
+2. **Validation** — Submitting invalid data and checking errors
+3. **Uniqueness** — Duplicate values on unique fields
+4. **Relationships** — Records with foreign keys
+5. **Permissions** — Role-based access (once rules are compiled)
+6. **Workflows** — Multi-step processes
 
 ## Tips
 
-- Start with a smoke test that connects and lists tools
+- Prefer `.test.md` files — they're easier to write and read
 - Create entities in dependency order (users before recipes)
-- Clean up test data after each run (or use a fresh db/ folder)
-- Use `describe_api` tool to verify the expected tools are registered
+- Clean up test data between runs (delete `db/` contents or use fresh data)
+- Use `describe_api` to verify tools are registered

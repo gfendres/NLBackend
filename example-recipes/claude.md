@@ -1,6 +1,17 @@
 # NLBackend Project
 
-This is a backend defined entirely in natural language files. Each folder has its own `claude.md` explaining how to write files for that folder.
+This is a backend defined entirely in natural language files. **You don't write code — you write markdown.**
+
+Each folder has its own `claude.md` explaining how to write files for that folder. Read the relevant `claude.md` before creating or editing files.
+
+## Your job
+
+The user will describe what they want in plain English. You translate that into `.md` files in the correct folders:
+
+1. Read `project.md` to understand the project
+2. Read the `claude.md` in each folder you need to work with
+3. Create or edit `.md` files following the conventions
+4. Start simple — schemas first, then add complexity only when asked
 
 ## Folder guide
 
@@ -13,43 +24,53 @@ This is a backend defined entirely in natural language files. Each folder has it
 | `integrations/` | Configure external services | `integrations/claude.md` |
 | `config/` | Configure the LLM and runtime | `config/claude.md` |
 | `tests/` | Test scenarios | `tests/claude.md` |
-| `db/` | Auto-managed data storage | `db/claude.md` (don't edit data) |
+| `db/` | Auto-managed data storage | `db/claude.md` (**don't edit**) |
 
-## Quick start
+## What you get for free
 
-1. Edit `project.md` with your project's name and description
-2. Add schema files to `schema/` — one per entity
-3. CRUD tools are auto-generated from your schemas (no code needed!)
-4. Add rules, actions, and workflows as needed
+When you create a schema file like `schema/task.md`, the framework **automatically** generates these tools — no action files needed:
 
-## Running the server
+- `tasks_create` — create a new task
+- `tasks_get` — get a task by ID
+- `tasks_list` — list tasks with filters, sorting, pagination
+- `tasks_update` — update a task
+- `tasks_delete` — delete a task
+
+Plus these system tools are always available:
+- `describe_api` — list everything available
+- `query_db` — complex queries
+- `mutate_db` — low-level data operations
+- `inspect` — view compiled state
+- `run_workflow` — execute workflows
+
+## Quick start for a new project
+
+1. Edit `project.md` with the project's name and description
+2. Create schema files in `schema/` — one per entity (read `schema/claude.md` first)
+3. That's it! CRUD tools are auto-generated. Add rules/actions/workflows only when needed.
+
+## What NOT to do
+
+- Don't write TypeScript, JavaScript, or any code
+- Don't create files outside the recognized folders
+- Don't edit anything in `db/` — it's auto-managed
+- Don't add complexity the user didn't ask for
+- Don't put secrets in markdown — use environment variable references
+
+## Running the server (for the user)
+
+After you've created the `.md` files, the user starts the server with:
 
 ```bash
-# Start the MCP server (requires Bun — https://bun.sh)
-bun run /path/to/nlbackend/src/index.ts .
+# Install NLBackend (one time)
+git clone https://github.com/gfendres/NLBackend.git
+cd NLBackend && bun install
 
-# Get MCP connection config for Claude Desktop / Cursor
-bun run /path/to/nlbackend/src/cli.ts config .
+# Start the server pointing to the project folder
+bun run src/index.ts /path/to/this/project
+
+# Get MCP config to connect Claude Desktop or Cursor
+bun run src/cli.ts config /path/to/this/project
 ```
 
-## Connecting a consuming LLM
-
-After starting the server, configure your MCP client (Claude Desktop, Cursor, etc.) to connect:
-
-```json
-{
-  "mcpServers": {
-    "my-backend": {
-      "command": "bun",
-      "args": ["run", "/path/to/nlbackend/src/index.ts", "/path/to/this/project"]
-    }
-  }
-}
-```
-
-The consuming LLM can then:
-- Read `nlbackend://project` for a full overview
-- Call `describe_api` to discover all tools
-- Use CRUD tools like `users_create`, `recipes_list`
-- Use `query_db` for complex queries
-- Use `run_workflow` for multi-step processes
+The user pastes the MCP config into their LLM client, and then a **consuming LLM** can call the tools to read and write data.
