@@ -109,51 +109,46 @@ async function initProject(target?: string): Promise<void> {
   console.log(`  1. cd ${folder}`);
   console.log("  2. Edit project.md with your project name and description");
   console.log("  3. Add schema files to schema/ (one per entity)");
-  console.log(`  4. Start the server: bun run ${join(import.meta.dir, "index.ts")} .`);
-  console.log(`  5. Get MCP config: bun run ${join(import.meta.dir, "cli.ts")} config .`);
+  console.log("  4. Start the server: nlbackend .");
+  console.log("  5. Get MCP config: nlbackend config .");
   console.log();
   console.log("  Each folder has a claude.md explaining the conventions.");
-  console.log("  Share the project with Claude and it will know how to build your backend!");
+  console.log("  Share the project folder with an LLM and it will know how to build your backend!");
   console.log();
+  console.log("  The project is just markdown — no framework code lives here.");
   console.log("  Two ways to use:");
-  console.log("    🔨 Building LLM — reads claude.md files and writes schema/action/rule .md files");
-  console.log("    🤖 Consuming LLM — connects via MCP and calls tools to read/write data");
+  console.log("    🔨 Building LLM — reads claude.md files, writes .md definitions");
+  console.log("    🤖 Consuming LLM — connects via MCP, calls tools to read/write data");
 }
 
 /** Output the MCP client config JSON needed to connect to this project */
 function printMcpConfig(target?: string): void {
   const projectPath = resolve(target ?? ".");
-  const indexPath = join(import.meta.dir, "index.ts");
 
   // Derive a server name from the folder name
   const folderName = projectPath.split("/").pop() ?? "my-backend";
   const serverName = `nlbackend-${folderName}`;
 
+  const mcpConfig = {
+    mcpServers: {
+      [serverName]: {
+        command: "nlbackend",
+        args: [projectPath],
+      },
+    },
+  };
+
   console.log();
   console.log("Add this to your MCP client config to connect an LLM to this backend.");
   console.log();
   console.log("┌─ Claude Desktop (~/.claude/claude_desktop_config.json) ─────────");
-  console.log(JSON.stringify({
-    mcpServers: {
-      [serverName]: {
-        command: "bun",
-        args: ["run", indexPath, projectPath],
-      },
-    },
-  }, null, 2));
+  console.log(JSON.stringify(mcpConfig, null, 2));
   console.log();
   console.log("┌─ Cursor (.cursor/mcp.json) ─────────────────────────────────────");
-  console.log(JSON.stringify({
-    mcpServers: {
-      [serverName]: {
-        command: "bun",
-        args: ["run", indexPath, projectPath],
-      },
-    },
-  }, null, 2));
+  console.log(JSON.stringify(mcpConfig, null, 2));
   console.log();
   console.log("┌─ Generic MCP stdio config ──────────────────────────────────────");
-  console.log(`  command: bun run ${indexPath} ${projectPath}`);
+  console.log(`  command: nlbackend ${projectPath}`);
   console.log();
   console.log("Once configured, the LLM can read 'nlbackend://project' for a full overview,");
   console.log("or call 'describe_api' to discover all available tools.");

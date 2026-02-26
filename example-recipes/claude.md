@@ -57,20 +57,26 @@ Plus these system tools are always available:
 - Don't add complexity the user didn't ask for
 - Don't put secrets in markdown — use environment variable references
 
-## Running the server (for the user)
+## How the user runs this project
 
-After you've created the `.md` files, the user starts the server with:
+This project is just markdown files. The NLBackend framework is a separate tool that reads them. The user runs:
 
 ```bash
 # Install NLBackend (one time)
-git clone https://github.com/gfendres/NLBackend.git
-cd NLBackend && bun install
+npm install -g nlbackend    # or: bunx nlbackend
 
-# Start the server pointing to the project folder
-bun run src/index.ts /path/to/this/project
+# Start the MCP server
+nlbackend .
 
-# Get MCP config to connect Claude Desktop or Cursor
-bun run src/cli.ts config /path/to/this/project
+# Get MCP config for Claude Desktop / Cursor
+nlbackend config .
+
+# Run tests
+nlbackend test .
 ```
 
-The user pastes the MCP config into their LLM client, and then a **consuming LLM** can call the tools to read and write data.
+Then the user pastes the MCP config into their LLM client, and a **consuming LLM** can call the tools to read and write data.
+
+## This project does NOT contain any framework code
+
+Everything here is natural language definitions. The framework (`nlbackend`) is installed separately and knows how to read these files. You only need to create and edit `.md` files.

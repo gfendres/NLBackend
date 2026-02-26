@@ -52,7 +52,7 @@ Write tests as plain-English scenarios using Given/When/Then:
 ### Running natural language tests
 
 ```bash
-bun run /path/to/nlbackend/src/cli.ts test /path/to/this/project
+nlbackend test .
 ```
 
 ## 2. TypeScript tests (`.ts`)
@@ -64,8 +64,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const transport = new StdioClientTransport({
-  command: "bun",
-  args: ["run", "src/index.ts", "./my-project"],
+  command: "nlbackend",
+  args: ["."],
 });
 
 const client = new Client({ name: "test", version: "1.0.0" });
